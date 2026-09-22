@@ -31,3 +31,8 @@ func GetHourDiff(inputTime time.Time) int {
 
 	return int(duration.Hours()) // 返回 int 类型的小时数
 }
+
+// FormatTime 接收一个 time.Time 对象，转换为指定时区并格式化为 string
+func FormatTime(t time.Time) string {
+	return t.In(localZone).Format(layout)
+}

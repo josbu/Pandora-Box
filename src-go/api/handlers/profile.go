@@ -1,11 +1,14 @@
 package handlers
 
 import (
-	"github.com/snakem982/pandora-box/api/job"
-	"github.com/snakem982/pandora-box/pkg/proxy"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/snakem982/pandora-box/api/job"
+	"github.com/snakem982/pandora-box/pkg/proxy"
 
 	"github.com/metacubex/chi"
 	"github.com/metacubex/chi/render"
@@ -40,6 +43,10 @@ func profileRouter() http.Handler {
 	r.Patch("/", switchProfile)
 	// 存储排序
 	r.Get("/order", saveProfileOrder)
+	// 获取文件配置
+	r.Post("/config", postProfileConfig)
+	// 更新文件配置
+	r.Put("/config", putProfileConfig)
 
 	return r
 }
@@ -178,6 +185,26 @@ func refreshProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	title := profile.Title
 
+	// 本地数据直接返回
+	if profile.Type == 2 {
+		// 如果配置正在使用中  进行配置更新
+		if profile.Selected {
+			internal.SwitchProfile(true)
+		}
+		// 获取文件修改时间存盘
+		fileInfo, err := os.Stat(utils.GetUserHomeDir(profile.Path))
+		if err != nil {
+			ErrorResponse(w, r, err)
+			return
+		}
+		profile.SetModifyTime(fileInfo.ModTime())
+		job.UpdateDb(profile, profile.Type)
+
+		render.JSON(w, r, profile)
+		return
+	}
+
+	// 远程订阅进行请求
 	// 发送请求
 	sub := profile.Content
 	headers := map[string]string{}
@@ -275,6 +302,64 @@ func switchProfile(w http.ResponseWriter, r *http.Request) {
 	_ = cache.Put(profile.Id, profile)
 
 	internal.SwitchProfile(true)
+
+	render.NoContent(w, r)
+}
+
+// 获取文件配置
+func postProfileConfig(w http.ResponseWriter, r *http.Request) {
+	var profile models.Profile
+	if err := render.DecodeJSON(r.Body, &profile); err != nil {
+		ErrorResponse(w, r, err)
+		return
+	}
+
+	// 获取文件路径
+	config, err := utils.ReadFile(utils.GetUserHomeDir(profile.Path))
+	if err != nil {
+		ErrorResponse(w, r, err)
+		return
+	}
+
+	render.PlainText(w, r, config)
+}
+
+// 修改文件配置
+func putProfileConfig(w http.ResponseWriter, r *http.Request) {
+	data := struct {
+		Profile *models.Profile `json:"profile"`
+		Config  string          `json:"config"`
+	}{}
+
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		ErrorResponse(w, r, err)
+		return
+	}
+
+	// 校验配置文件
+	configBytes := []byte(data.Config)
+	_, err := executor.ParseWithBytes(configBytes)
+	if err != nil {
+		log.Errorln("[testProfileConfig] error: %v", err)
+		ErrorResponse(w, r, err)
+		return
+	}
+
+	// 保存配置文件
+	_, err = utils.SaveFile(utils.GetUserHomeDir(data.Profile.Path), configBytes)
+	if err != nil {
+		log.Errorln("[saveProfileConfig] error: %v", err)
+		ErrorResponse(w, r, err)
+		return
+	}
+
+	data.Profile.SetUpdateTime()
+	job.UpdateDb(data.Profile, data.Profile.Type)
+
+	// 如果配置正在使用中  进行配置更新
+	if data.Profile.Selected {
+		internal.SwitchProfile(true)
+	}
 
 	render.NoContent(w, r)
 }

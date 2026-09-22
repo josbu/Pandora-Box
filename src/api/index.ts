@@ -1,3 +1,4 @@
+import {ComponentPublicInstance} from 'vue';
 import createProxiesApi from "./proxies";
 import createHomeApi from "@/api/home";
 import createConnApi from "@/api/connections";
@@ -7,7 +8,7 @@ import createDnsApi from "@/api/dns";
 import createMihomoApi from "@/api/mihomo";
 import createPandoraApi from "@/api/pandora";
 
-export default function createApi(proxy: any) {
+export default function createApi(proxy: ComponentPublicInstance) {
     return {
         getDelay: createProxiesApi(proxy).getDelay,
         getGroups: createProxiesApi(proxy).getGroups,
@@ -42,6 +43,8 @@ export default function createApi(proxy: any) {
         getProfileList: createProfilesApi(proxy).getProfileList,
         refreshProfile: createProfilesApi(proxy).refreshProfile,
         switchProfile: createProfilesApi(proxy).switchProfile,
+        getProfileConfig: createProfilesApi(proxy).getProfileConfig,
+        updateProfileConfig: createProfilesApi(proxy).putProfileConfig,
         getDNS: createDnsApi(proxy).getDNS,
         updateDNS: createDnsApi(proxy).updateDNS,
         switchDNS: createDnsApi(proxy).switchDNS,

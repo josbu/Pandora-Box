@@ -1,9 +1,10 @@
 package models
 
 import (
-	"github.com/snakem982/pandora-box/pkg/utils"
 	"math/big"
 	"time"
+
+	"github.com/snakem982/pandora-box/pkg/utils"
 )
 
 type Profile struct {
@@ -32,4 +33,8 @@ func (p *Profile) GetUpdateTime() time.Time {
 
 func (p *Profile) SetUpdateTime() {
 	p.Update = utils.GetDateTime()
+}
+
+func (p *Profile) SetModifyTime(t time.Time) {
+	p.Update = utils.FormatTime(t)
 }

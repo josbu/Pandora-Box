@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
+import {createRouter, createWebHistory, RouteRecordRaw} from 'vue-router';
 
 import Home from '@/views/Home.vue';
 import Setting from '@/views/Setting.vue';
@@ -13,6 +13,7 @@ import Log from '@/views/Log.vue';
 import Crawl from '@/views/Crawl.vue';
 import Dns from '@/views/setting/Dns.vue';
 import Shortcut from "@/views/setting/Shortcut.vue";
+import ProfileConfig from "@/views/profiles/ProfileConfig.vue";
 
 const routes: Array<RouteRecordRaw> = [
     {
@@ -49,6 +50,11 @@ const routes: Array<RouteRecordRaw> = [
         path: '/Profiles',
         name: 'Profiles',
         component: Profiles,
+    },
+    {
+        path: '/Profiles/Config',
+        name: 'ProfilesConfig',
+        component: ProfileConfig,
     },
     {
         path: '/Rule',

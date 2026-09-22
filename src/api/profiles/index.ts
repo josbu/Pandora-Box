@@ -35,6 +35,16 @@ const switchProfile = (proxy: any) => async function (profile: Profile) {
     return await proxy.$http.patch('/profile', profile);
 }
 
+// 获取配置列表
+const postProfileConfig = (proxy: any) => async function (profile: Profile): Promise<Profile[]> {
+    return await proxy.$http.post('/profile/config', profile);
+}
+
+// 获取配置列表
+const putProfileConfig = (proxy: any) => async function (data: any): Promise<Profile[]> {
+    return await proxy.$http.put('/profile/config', data);
+}
+
 
 export default function createProfilesApi(proxy: any) {
     return {
@@ -45,5 +55,7 @@ export default function createProfilesApi(proxy: any) {
         getProfileList: getProfileList(proxy),
         refreshProfile: refreshProfile(proxy),
         switchProfile: switchProfile(proxy),
+        getProfileConfig: postProfileConfig(proxy),
+        putProfileConfig: putProfileConfig(proxy),
     }
 }
