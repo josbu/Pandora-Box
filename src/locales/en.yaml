@@ -32,6 +32,7 @@ sec-nav:
   log: Log
   crawl: Crawl
 
+modify: Modify
 delete: Delete
 confirm: Confirm
 cancel: Cancel

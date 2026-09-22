@@ -32,6 +32,7 @@ sec-nav:
   log: 日志
   crawl: 爬取
 
+modify: 修改
 delete: 删除
 confirm: 确定
 cancel: 取消

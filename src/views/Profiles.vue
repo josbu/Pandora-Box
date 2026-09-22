@@ -1,483 +1,117 @@
+<!-- src/views/profiles/Profiles.vue -->
 <script setup lang="ts">
-import {Profile} from "@/types/profile";
-import createApi from "@/api";
-import {pError, pLoad, pSuccess, pWarning} from "@/util/pLoad";
-import {useProxiesStore} from "@/store/proxiesStore";
-import {useMenuStore} from "@/store/menuStore";
-import {getTemplateTitle, isHttpOrHttps, prettyBytes} from "@/util/format";
-import {useI18n} from "vue-i18n";
-import {Browser, Clipboard, Events} from "@/runtime"
-import {useWebStore} from "@/store/webStore";
-import {WS} from "@/util/ws";
-import {onBeforeRouteLeave} from "vue-router";
+import {onBeforeUnmount, onMounted, ref} from 'vue'
+import {Clipboard} from '@/runtime'
+import {DropdownInstance} from 'element-plus'
+import {Delete, Edit, EditPen, HomeFilled, RefreshRight, Service} from '@element-plus/icons-vue'
 
-// i18n
-const {t} = useI18n();
+import {useProfiles} from './profiles/useProfiles'
+import ProfileHeader from './profiles/ProfileHeader.vue'
+import ProfileCard from './profiles/ProfileCard.vue'
+import ProfileDialogs from './profiles/ProfileDialogs.vue'
 
-// 获取当前 Vue 实例的 proxy 对象
-const {proxy} = getCurrentInstance()!;
-const api = createApi(proxy);
+import {useRouter} from "vue-router";
 
-// 当前页面使用store
-const menuStore = useMenuStore();
-const proxiesStore = useProxiesStore();
-const webStore = useWebStore();
+const router = useRouter()
 
-// 头部几个按钮操作
-const addFormVisible = ref(false)
-const isNowAdd = ref(false)
-const addForm = reactive({
-  content: '',
-})
+const {
+  api, t, profiles, headerShow, tList, profileStore,
+  menuStore, webStore, sendOrder, getProfileList, switchProfile, deleteProfile,
+  refreshProfile, goHome, goSupport
+} = useProfiles()
 
-// 列表显示
-let profiles = reactive<any[]>([])
+const dialogsRef = ref<InstanceType<typeof ProfileDialogs>>()
+const canDrag = ref(false)
 
-async function getProfileList() {
-  if (profiles.length != 0) {
-    profiles.splice(0, profiles.length)
-  }
-  const list = await api.getProfileList()
-  if (list && list.length != 0) {
-    list.forEach(item => {
-      profiles.push(item)
-      if (item['selected']) {
-        setHeaderShow(item)
-      }
-    })
+// 右键菜单相关
+const dropdownRef = ref<DropdownInstance>()
+const cr_home = ref(false)
+const cr_support = ref(false)
+const position = ref({top: 0, left: 0, bottom: 0, right: 0} as DOMRect)
+const triggerRef = ref({getBoundingClientRect: () => position.value})
 
-    Events.Emit({
-      name: "profiles",
-      data: list
-    })
+
+const handleContextmenu = (event: MouseEvent, data: any) => {
+  profileStore.profileConfig = data
+  cr_home.value = !!data?.home;
+  cr_support.value = !!data?.support;
+  position.value = DOMRect.fromRect({x: event.clientX, y: event.clientY})
+  event.preventDefault()
+  dropdownRef.value?.handleOpen()
+}
+
+const handleCommand = (command: string) => {
+  dropdownRef.value?.handleClose()
+  const data = profileStore.profileConfig
+  if (!data) return
+
+  switch (command) {
+    case 'refresh':
+      refreshProfile(data)
+      break
+    case 'edit':
+      dialogsRef.value?.openEdit(data)
+      break
+    case 'editConfig':
+      router.push('/Profiles/Config');
+      break
+    case 'home':
+      goHome(data)
+      break
+    case 'support':
+      goSupport(data)
+      break
+    case 'delete':
+      const idx = profiles.findIndex((p) => p.id === data.id)
+      if (idx !== -1) deleteProfile(data, idx)
+      break
+    default:
+      return;
   }
 }
 
-async function add() {
-  if (!addForm.content) {
-    return
-  }
-
-  isNowAdd.value = true
-  const p = new Profile()
-  p.content = addForm.content
-  try {
-    const pList = await api.addProfileFromInput(p)
-    if (pList && pList.length > 0) {
-      pList.forEach(item => profiles.push(item))
-    }
-    sendOrder(profiles)
-    addForm.content = ""
-    addFormVisible.value = false
-  } catch (e) {
-    if (e['message']) {
-      pError(e['message'])
-    }
-
-    // 批量操作刷新列表
-    await getProfileList()
-    sendOrder(profiles)
-  }
-  isNowAdd.value = false
-}
-
-function handleAdd() {
-  addForm.content = ""
-  addFormVisible.value = true
-}
-
-function handlePaste() {
-  addForm.content = Clipboard.Text()
-  addFormVisible.value = true
-}
-
-function openFile() {
+// 头部事件触发
+const handleAdd = () => dialogsRef.value?.openAdd()
+const handlePaste = () => dialogsRef.value?.openAdd(Clipboard.Text())
+const openFile = () => {
   webStore.dnd = true
   webStore.dSelect = true
 }
 
-// 头部显示
-const headerShow = reactive({
-  available: '',
-  used: '',
-  expire: '',
-  update: '',
-})
-
-function setHeaderShow(item: any) {
-  if (item['available']) {
-    headerShow.available = prettyBytes(item['available'])
-  } else {
-    headerShow.available = ''
-  }
-  if (item['used']) {
-    headerShow.used = prettyBytes(item['used'])
-  } else {
-    headerShow.used = ''
-  }
-  if (item['expire']) {
-    headerShow.expire = item['expire']
-  } else {
-    headerShow.expire = ''
-  }
-  if (item['update']) {
-    headerShow.update = item['update']
-  } else {
-    headerShow.update = ''
-  }
-}
-
-// 拖动相关
-const canDrag = ref(false)
-
-function mouseEnter() {
-  canDrag.value = true
-}
-
-function mouseLeave() {
-  canDrag.value = false
-}
-
-// 切换订阅配置
-async function switchProfile(data: any) {
-  if (data['selected']) {
-    return
-  }
-
-  await pLoad(t('profiles.switch.ing'), async () => {
-    try {
-      await api.switchProfile(data)
-      proxiesStore.active = ""
-
-      await api.waitRunning()
-
-      for (let profile of profiles) {
-        if (profile['selected']) {
-          profile['selected'] = false
-        }
-      }
-      data['selected'] = true
-      setHeaderShow(data)
-
-      api.getRuleNum().then((res) => {
-        menuStore.setRuleNum(res);
-      });
-
-      Events.Emit({
-        name: "profiles",
-        data: toRaw(profiles)
-      })
-
-      // 关闭之前的连接
-      api.closeAllConnection()
-
-      pSuccess(t('profiles.switch.success'))
-    } catch (e) {
-      if (e['message']) {
-        pError(e['message'])
-      }
-    }
-  })
-
-}
-
-
-watch(() => webStore.fProfile, async (data: any) => {
-  for (let profile of profiles) {
-    if (profile['selected']) {
-      profile['selected'] = false
-    }
-    if (profile['id'] == data['id']) {
-      data = profile
-    }
-  }
-
-  data['selected'] = true
-  setHeaderShow(data)
-})
-
-
-// 更新订阅
-async function refresh(data: any) {
-  await pLoad(t('profiles.refresh.ing'), async () => {
-    try {
-      const re = await api.refreshProfile(data)
-      if (data['selected']) {
-        setHeaderShow(re)
-      }
-      Object.assign(data, re);
-      pSuccess(t('profiles.refresh.success'))
-    } catch (e) {
-      if (e['message']) {
-        pError(e['message'])
-      }
-    }
-  })
-}
-
-// 几个按钮操作
-// 到主页
-function goHome(data: any) {
-  Browser.OpenURL(data.home)
-}
-
-function goSupport(data: any) {
-  Browser.OpenURL(data.support)
-}
-
-// 修改配置
-const editFormVisible = ref(false)
-let editForm = reactive<any>({})
-let editFormD = {}
-
-function updateProfile(data: any) {
-  editFormD = data
-  editForm = reactive<any>({})
-  Object.assign(editForm, data)
-  editFormVisible.value = true
-}
-
-function validateField(value: any) {
-  // 如果为空，则通过校验
-  if (value === "" || value === null || value === undefined) {
-    return true;
-  }
-
-  // 如果不为空，验证是否是大于0且小于等于128的整数
-  const regex = /^[1-9][0-9]?$|^1[0-2][0-8]$/;
-  return regex.test(value.toString());
-}
-
-const isNowEdit = ref(false)
-
-async function saveUpdateProfile() {
-
-  switch (editForm.type) {
-    case 2:
-      if (!editForm.title) {
-        pError(t('profiles.edit.title-tip'))
-        return
-      }
-      break
-    case 1:
-      if (!editForm.title) {
-        pError(t('profiles.edit.title-tip'))
-        return
-      }
-
-      if (!editForm.content) {
-        pError(t('profiles.edit.url-tip'))
-        return
-      }
-
-      if (!isHttpOrHttps(editForm.content)) {
-        pError(t('profiles.edit.url-error'))
-        return
-      }
-
-      if (!validateField(editForm.interval)) {
-        pError(t('profiles.edit.update-tip'))
-        return
-      }
-  }
-
-  isNowEdit.value = true
-  await api.updateProfile(editForm)
-  isNowEdit.value = false
-  // 更新当前页面的值
-  Object.assign(editFormD, editForm)
-  editFormVisible.value = false
-  pSuccess(t('profiles.edit.success'))
-
-  Events.Emit({
-    name: "profiles",
-    data: toRaw(profiles)
-  })
-
-  api.getRuleNum().then((res) => {
-    menuStore.setRuleNum(res);
-  });
-}
-
-// 删除配置
-async function deleteProfile(data: any, index: any) {
-  if (data['selected']) {
-    pWarning(t('profiles.del-tip'))
-    return
-  }
-
-  try {
-    await api.deleteProfile(data)
-    profiles.splice(index, 1)
-    Events.Emit({
-      name: "profiles",
-      data: toRaw(profiles)
-    })
-  } catch (e) {
-    if (e['message']) {
-      pError(e['message'])
-    }
-  }
-}
-
-// webSocket相关操作
-let wsOrder: WS
-
-function num2SafeNumber(data: any, key: string) {
-  if (data[key] !== undefined && data[key] !== null) {
-    let num = Number(data[key]);
-
-    if (!Number.isFinite(num)) {
-      console.warn(`Invalid number for key "${key}":`, data[key]);
-      return;
-    }
-
-    if (num > Number.MAX_SAFE_INTEGER) {
-      data[key] = Number.MAX_SAFE_INTEGER;
-    } else if (num < Number.MIN_SAFE_INTEGER) {
-      data[key] = Number.MIN_SAFE_INTEGER;
-    } else {
-      data[key] = num;
-    }
-  }
-}
-
-function sendOrder(data: any) {
-  if (wsOrder) {
-    Events.Emit({
-      name: "profiles",
-      data: toRaw(data)
-    })
-    for (let i = 0; i < data.length; i++) {
-      num2SafeNumber(data[i], 'available')
-      num2SafeNumber(data[i], 'used')
-      num2SafeNumber(data[i], 'total')
-    }
-    wsOrder.send(JSON.stringify(data))
-  }
-}
-
+// 监听 Deeplink 导入事件
 function handleProfilesImported(event: Event) {
-  const customEvent = event as CustomEvent;
-  const detail = customEvent.detail;
-  if (!detail || !Array.isArray(detail.profiles)) {
-    return;
-  }
+  const detail = (event as CustomEvent).detail
+  if (!detail?.profiles || !Array.isArray(detail.profiles)) return
 
-  let added = false;
+  let added = false
   for (const item of detail.profiles) {
-    if (!item) {
-      continue;
-    }
-    const exists = profiles.some(profile => profile['id'] === item['id']);
-    if (!exists) {
-      profiles.push(item);
-      added = true;
+    if (item && !profiles.some((p) => p.id === item.id)) {
+      profiles.push(item)
+      added = true
     }
   }
-
-  if (added) {
-    sendOrder(profiles);
-  }
+  if (added) sendOrder(profiles)
 }
 
-// 路由切换前关闭 WebSocket
-onBeforeRouteLeave(() => {
-  wsOrder.close();
-});
-
-// This is now handled in the onMounted section above
-// onBeforeUnmount(() => {
-//   wsOrder.close();
-// })
-
-// Template列表
-let tList = reactive([]);
-
-// vue 周期相关
-onMounted(async () => {
-  const urlTraffic = webStore.wsUrl + "/profile/order?token=" + webStore.secret;
-  wsOrder = new WS(urlTraffic);
-
-  await getProfileList()
-  tList = await api.getTemplateList();
-  tList.unshift({
-    title: 'm0',
-    id: 'm0'
-  });
-  window.addEventListener('deeplink-profile-imported', handleProfilesImported as EventListener);
+onMounted(() => {
+  window.addEventListener('deeplink-profile-imported', handleProfilesImported as EventListener)
 })
-
 onBeforeUnmount(() => {
-  wsOrder.close();
-  window.removeEventListener('deeplink-profile-imported', handleProfilesImported as EventListener);
+  window.removeEventListener('deeplink-profile-imported', handleProfilesImported as EventListener)
 })
 
-watch(() => webStore.dProfile, async (pList) => {
-  if (pList && pList.length > 0) {
-    pList.forEach(item => profiles.push(item))
-  }
-})
 
 </script>
 
 <template>
   <MyLayout>
     <template #top>
-      <el-space class="space">
-        <div class="title">
-          {{ $t('profiles.title') }}
-        </div>
-        <div class="profile-option">
-          <el-tooltip
-              :content="$t('profiles.add')"
-              placement="top">
-            <el-icon
-                @click="handleAdd"
-                class="profile-option-btn">
-              <icon-mdi-plus-thick/>
-            </el-icon>
-          </el-tooltip>
-
-          <el-tooltip
-              :content="$t('profiles.paste')"
-              placement="top">
-            <el-icon
-                @click="handlePaste"
-                class="profile-option-btn">
-              <icon-mdi-content-paste/>
-            </el-icon>
-          </el-tooltip>
-
-          <el-tooltip
-              :content="$t('profiles.open')"
-              placement="top">
-            <el-icon
-                @click="openFile"
-                class="profile-option-btn">
-              <icon-mdi-folder-open/>
-            </el-icon>
-          </el-tooltip>
-        </div>
-      </el-space>
-
-      <div class="sub-title">
-        <template v-if="headerShow.available">
-          <span>{{ $t('profiles.available') }} {{ headerShow.available }}</span>
-          <el-divider direction="vertical" border-style="dashed"/>
-        </template>
-        <template v-if="headerShow.used">
-          <span>{{ $t('profiles.use') }} {{ headerShow.used }}</span>
-          <el-divider direction="vertical" border-style="dashed"/>
-        </template>
-        <template v-if="headerShow.expire">
-          <span>{{ $t('profiles.expire') }} {{ headerShow.expire }}</span>
-          <el-divider direction="vertical" border-style="dashed"/>
-        </template>
-        <template v-if="headerShow.update">
-          <span>{{ $t('profiles.update') }} {{ headerShow.update }}</span>
-        </template>
-      </div>
+      <ProfileHeader
+          :header-show="headerShow"
+          @add="handleAdd"
+          @paste="handlePaste"
+          @openFile="openFile"
+      />
     </template>
 
     <template #bottom>
@@ -486,294 +120,63 @@ watch(() => webStore.dProfile, async (pList) => {
           @getData="sendOrder"
           :gap="15"
           :draggable="canDrag"
-          style="margin-left: 10px;width: 95%;"
+          style="margin-left: 10px; width: 95%"
       >
-        <template v-slot:VDC="{data,index}">
-          <div
-              :class="data.selected?'sub-card sub-card-select':'sub-card'"
-              @click="switchProfile(data)"
-          >
-            <div class="row">
-              <el-icon
-                  @mouseenter.stop="mouseEnter"
-                  @mouseleave.stop="mouseLeave"
-                  size="22"
-                  class="drag">
-                <icon-mdi-drag/>
-              </el-icon>
-              <el-tooltip
-                  v-if="data.type == 1"
-                  :content="$t('refresh')"
-                  placement="top">
-                <el-icon size="22"
-                         class="ops"
-                         @click.stop="refresh(data)">
-                  <icon-mdi-refresh/>
-                </el-icon>
-              </el-tooltip>
-
-            </div>
-            <div
-                class="system-info"
-            >
-              <span :title="data.title">
-                {{ data.title }}
-              </span>
-            </div>
-            <div class="bottom-row">
-              <el-tooltip
-                  v-if="data.support"
-                  :content="$t('profiles.support')"
-                  placement="top">
-                <el-icon
-                    class="ops"
-                    @click.stop="goSupport(data)"
-                    size="20">
-                  <icon-mdi-face-agent/>
-                </el-icon>
-              </el-tooltip>
-              <el-tooltip
-                  v-if="data.home"
-                  :content="$t('profiles.home')"
-                  placement="top">
-                <el-icon
-                    class="ops"
-                    @click.stop="goHome(data)"
-                    size="20">
-                  <icon-mdi-home-import-outline/>
-                </el-icon>
-              </el-tooltip>
-              <el-tooltip
-                  :content="$t('edit')"
-                  placement="top">
-                <el-icon
-                    class="ops"
-                    @click.stop="updateProfile(data)"
-                    size="20">
-                  <icon-mdi-square-edit-outline/>
-                </el-icon>
-              </el-tooltip>
-              <el-tooltip
-                  :content="$t('delete')"
-                  placement="top">
-                <el-icon
-                    class="ops"
-                    @click.stop="deleteProfile(data,index)"
-                    size="20">
-                  <icon-mdi-trash-can/>
-                </el-icon>
-              </el-tooltip>
-            </div>
-          </div>
+        <template v-slot:VDC="{ data }">
+          <ProfileCard
+              :data="data"
+              @switch="switchProfile"
+              @contextmenu="handleContextmenu"
+              @dragStart="canDrag = true"
+              @dragEnd="canDrag = false"
+          />
         </template>
       </VDContainer>
-
     </template>
   </MyLayout>
 
-  <el-dialog v-model="addFormVisible"
-             :title="t('profiles.add')"
-             width="520"
-             draggable
-             center
+  <!-- 弹窗统一管理组件 -->
+  <ProfileDialogs
+      ref="dialogsRef"
+      :api="api"
+      :tList="tList"
+      :profiles="profiles"
+      :menuStore="menuStore"
+      @refreshList="getProfileList"
+  />
+
+  <!-- 上下文右键菜单 -->
+  <el-dropdown
+      ref="dropdownRef"
+      :virtual-ref="triggerRef"
+      :show-arrow="false"
+      virtual-triggering
+      trigger="contextmenu"
+      placement="bottom-start"
+      size="large"
+      @command="handleCommand"
   >
-    <el-form :model="addForm">
-      <el-form-item>
-        <el-input
-            :rows="3"
-            type="textarea"
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false"
-            :placeholder="t('profiles.placeholder')"
-            v-model="addForm.content"
-        />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="addFormVisible = false">
-          {{ t('cancel') }}
-        </el-button>
-        <el-button
-            :loading="isNowAdd"
-            type="primary"
-            @click="add">
-          {{ t('confirm') }}
-        </el-button>
-      </div>
+    <template #dropdown>
+      <el-dropdown-menu>
+        <el-dropdown-item :icon="RefreshRight" command="refresh">{{ $t('refresh') }}</el-dropdown-item>
+        <el-dropdown-item :icon="Edit" command="edit">{{ $t('edit') }}</el-dropdown-item>
+        <el-dropdown-item :icon="EditPen" command="editConfig">{{ $t('modify') }}</el-dropdown-item>
+        <el-dropdown-item :icon="HomeFilled" command="home" v-if="cr_home">
+          {{ $t('profiles.home') }}
+        </el-dropdown-item>
+        <el-dropdown-item :icon="Service" command="support" v-if="cr_support">
+          {{ $t('profiles.support') }}
+        </el-dropdown-item>
+        <el-dropdown-item :icon="Delete" divided command="delete">{{ $t('delete') }}</el-dropdown-item>
+      </el-dropdown-menu>
     </template>
-  </el-dialog>
-
-  <el-dialog v-model="editFormVisible"
-             :title="t('edit')"
-             width="520"
-             draggable
-             center
-  >
-    <el-form
-        :model="editForm"
-        label-position="top"
-    >
-      <el-form-item
-          :label="t('profiles.edit.title')"
-          label-width="120">
-        <el-input
-            v-model="editForm.title"
-            clearable
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false"/>
-      </el-form-item>
-      <el-form-item
-          v-if="editForm.type == 1"
-          :label="t('profiles.edit.url')"
-          label-width="120">
-        <el-input
-            v-model="editForm.content"
-            clearable
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false"/>
-      </el-form-item>
-      <el-form-item
-          v-if="editForm.type == 1"
-          :label="t('profiles.edit.update')"
-          label-width="120">
-        <el-input
-            v-model="editForm.interval"
-            clearable
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false">
-        </el-input>
-      </el-form-item>
-      <el-form-item
-          :label="t('profiles.edit.template')"
-          label-width="120">
-        <el-select
-            v-model="editForm.template"
-            placeholder=""
-            clearable
-        >
-          <el-option
-              v-for="item in tList"
-              :key="item.id"
-              :label="getTemplateTitle(t,item.title)"
-              :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
-
-    </el-form>
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="editFormVisible = false">
-          {{ t('cancel') }}
-        </el-button>
-        <el-button
-            type="primary"
-            :loading="isNowEdit"
-            @click="saveUpdateProfile"
-        >
-          {{ t('confirm') }}
-        </el-button>
-      </div>
-    </template>
-  </el-dialog>
-
+  </el-dropdown>
 
 </template>
 
 <style scoped>
-.space {
-  margin-top: 15px;
-}
-
-.title {
-  font-size: 32px;
-  font-weight: bold;
-  margin-left: 10px;
-}
-
-.sub-title {
-  margin-left: 10px;
-  color: var(--top-hr-color);
-  font-size: 14px;
-  margin-top: 15px;
-}
-
-.profile-option {
-  margin-left: 10px;
-  font-size: 30px;
-  padding-top: 10px;
-}
-
-.profile-option-btn {
-  margin-right: 15px;
-}
-
-.profile-option-btn:hover {
-  cursor: pointer;
-  color: var(--hr-color);
-}
-
 :deep(.vdc-item-container) {
   width: calc(33% - 10px);
   max-width: 245px;
 }
-
-.sub-card {
-  padding: 5px 8px 5px 5px;
-  border: 2px solid var(--sub-card-border);
-  border-radius: 8px;
-  background: var(--sub-card-bg);
-  color: var(--text-color);
-  box-shadow: var(--left-nav-shadow);
-  margin-top: 5px;
-}
-
-.sub-card:hover, .sub-card-select {
-  background-color: var(--left-item-selected-bg);
-  border: 2px solid var(--text-color);
-  cursor: pointer;
-}
-
-.sub-card-select:hover {
-  cursor: default;
-}
-
-.sub-card .row {
-  display: flex;
-  justify-content: space-between;
-}
-
-.sub-card .row .drag:hover {
-  cursor: grab;
-}
-
-.ops:hover {
-  cursor: pointer;
-}
-
-.system-info {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-align: left;
-  font-size: 14px;
-  padding: 5px 10px 5px 15px;
-  color: var(--text-color);
-}
-
-.bottom-row {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 5px;
-  margin-bottom: 4px;
-  color: var(--text-color);
-}
-
-
 </style>
