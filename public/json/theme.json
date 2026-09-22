@@ -4,23 +4,6 @@
     "bg": "/images/default.jpg"
   },
   {
-    "id": "harbor",
-    "bg": "/images/harbor.jpg"
-  },
-  {
-    "id": "gradient",
-    "bg": [
-      "/images/gradient1.png",
-      "/images/gradient2.png",
-      "/images/gradient3.png",
-      "/images/gradient4.png",
-      "/images/gradient5.png",
-      "/images/gradient6.png",
-      "/images/gradient7.png",
-      "/images/gradient8.png"
-    ]
-  },
-  {
     "id": "sea",
     "bg": [
       "/images/sea1.jpg",
@@ -28,7 +11,8 @@
       "/images/sea3.jpg",
       "/images/sea4.jpg",
       "/images/sea5.jpg",
-      "/images/sea6.jpg"
+      "/images/sea6.jpg",
+      "/images/harbor.jpg"
     ]
   },
   {
@@ -56,8 +40,15 @@
     ]
   },
   {
-    "id": "handle",
-    "bg": "/images/handle.jpg"
+    "id": "gradient",
+    "bg": [
+      "/images/gradient1.png",
+      "/images/gradient2.png",
+      "/images/gradient4.png",
+      "/images/gradient5.png",
+      "/images/gradient6.png",
+      "/images/gradient8.png"
+    ]
   },
   {
     "id": "comics",
@@ -79,7 +70,8 @@
       "https://v2.xxapi.cn/api/random4kPic?type=acg&return=302",
       "https://v2.xxapi.cn/api/random4kPic?type=acg&return=302",
       "https://via.assets.so/game.jpg?w=1920&h=1080",
-      "https://v2.xxapi.cn/api/random4kPic?type=acg&return=302"
+      "https://v2.xxapi.cn/api/random4kPic?type=acg&return=302",
+      "/images/handle.jpg"
     ]
   },
   {
