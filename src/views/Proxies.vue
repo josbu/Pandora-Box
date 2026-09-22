@@ -502,7 +502,7 @@ watch(() => proxiesStore.now, async () => {
 }
 
 .proxy-nodes-title {
-  font-size: 14px;
+  font-size: 16px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -511,7 +511,7 @@ watch(() => proxiesStore.now, async () => {
 .proxy-nodes-tags {
   font-size: 14px;
   display: flex;
-  margin-top: 10px;
+  margin-top: 12px;
   justify-content: space-between;
 }
 

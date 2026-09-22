@@ -59,7 +59,7 @@ const onContentChange = () => {
         lang="yaml"
         theme="monokai"
         :options="editorOptions"
-        style="width: 100%; height: calc(100vh - 300px)"
+        style="width: 100%; height: calc(100vh - 260px)"
         class="editor"
         @change="onContentChange"
     />

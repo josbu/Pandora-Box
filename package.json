@@ -4,7 +4,6 @@
   "version": "1.1.0",
   "description": "A Simple Mihomo GUI",
   "main": ".vite/build/main.js",
-  "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development vite",
     "start": "NODE_ENV=development electron-forge start",
