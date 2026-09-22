@@ -22,7 +22,7 @@ function setupDeepLinkHandler() {
 
   const ensureDeepLinkReady = () => {
     try {
-      window.pxDeepLink.notifyReady();
+      window.pxDeepLink?.notifyReady();
     } catch (error) {
       console.error('Failed to notify deeplink readiness', error);
     }
@@ -69,7 +69,7 @@ function setupDeepLinkHandler() {
     }
   };
 
-  window.pxDeepLink.onImportProfile(importProfileFromDeepLink);
+  window.pxDeepLink?.onImportProfile(importProfileFromDeepLink);
 
   const handleWindowFocus = () => ensureDeepLinkReady();
   const handleVisibilityChange = () => {
@@ -172,3 +172,8 @@ function safeDecode(value?: string) {
 
 onMounted(setupDeepLinkHandler)
 </script>
+
+<!-- 添加一个空的 template，消除警告 -->
+<template>
+  <div style="display: none;"></div>
+</template>

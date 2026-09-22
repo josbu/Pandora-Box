@@ -24,12 +24,10 @@ const lang = detectLanguage();
 
 async function bootstrap() {
     // 加载缓存数据
-    // @ts-ignore
-    if (window["pxStore"]) {
+    if (window.pxStore) {
         const keys = ['menu', 'home', 'proxies', 'setting', 'web', 'shortcut'];
         for (const key of keys) {
-            // @ts-ignore
-            const val = await window["pxStore"].get(key);
+            const val:string = await window.pxStore.get(key);
             if (val) {
                 memoryCache[key] = val;
             }
@@ -95,7 +93,9 @@ async function bootstrap() {
     const homeStore = useHomeStore();
 
     // 获取系统类型
-    homeStore.setOS(window.pxOs());
+    if (window.pxOs) {
+        homeStore.setOS(window.pxOs());
+    }
 
     // 设置软件开始时间
     homeStore.setStartTime(Date.now());

@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import path from "path";
 import log from './log';
 
@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../renderer/px_window')));
 
 // **检测 PX 后端是否存活**
-app.get("/pxAlive", (req, res) => {
+app.get("/pxAlive", (req: Request, res: Response) => {
     res.status(200).send("alive");
 });
 
@@ -43,7 +43,7 @@ app.get("/pxStore", (req, res) => {
 });
 
 // **处理所有未匹配的请求，返回 index.html**
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
     res.redirect(302, '/index.html');
 });
 

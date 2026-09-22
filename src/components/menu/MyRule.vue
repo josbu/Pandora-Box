@@ -56,7 +56,7 @@ watch(
     (newValue) => {
       api.updateConfigs({
         mode: newValue,
-      }).then((res: any) => {
+      }).then(() => {
         pSuccess(t("rules." + newValue + "-switch"));
         // 同步 mihomo 配置
         pUpdateMihomo(menuStore, settingStore, api)
